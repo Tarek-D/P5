@@ -1,8 +1,6 @@
 # P5
 Migrez des données médicales à l'aide du NoSQL
 
-Voici un README prêt à placer à la racine du projet, couvrant le contexte, l’installation, l’exécution des commandes validate/load/postcheck, le schéma cible, les index et le dépannage, en s’appuyant sur le dataset et les rapports générés. [1][2][3]
-
 # README — Migration CSV vers MongoDB
 
 ### Contexte
@@ -77,3 +75,15 @@ Sources
 [1] healthcare_dataset.csv https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/53032499/26dacc55-a1e7-4b8c-8d7e-d590f3894bf0/healthcare_dataset.csv
 [2] pre_ingest.json https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/53032499/2edec6cd-65bd-4372-9028-e632835967fc/pre_ingest.json
 [3] post_ingest.json https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/53032499/289b1e8c-95f0-4ba6-a0fa-815cbb51eca0/post_ingest.json
+
+# DOCKER 
+
+# 1) Démarrer MongoDB
+docker compose -f docker/docker-compose.yml up -d mongodb
+
+# 2) Exécuter la migration (validate → load → postcheck)
+docker compose -f docker/docker-compose.yml run --rm ingester
+
+# 3) Vérifier MongoDB
+docker exec -it mongodb mongosh --quiet --eval "db.adminCommand({ ping: 1 })"
+# Attendu: { ok: 1 }

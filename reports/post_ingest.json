@@ -1,29 +1,29 @@
 {
-  "total_docs": 55500,
+  "total_docs": 111000,
   "by_condition_top10": [
     {
       "_id": "Arthritis",
-      "cnt": 9308
+      "cnt": 18616
     },
     {
       "_id": "Diabetes",
-      "cnt": 9304
+      "cnt": 18608
     },
     {
       "_id": "Hypertension",
-      "cnt": 9245
+      "cnt": 18490
     },
     {
       "_id": "Obesity",
-      "cnt": 9231
+      "cnt": 18462
     },
     {
       "_id": "Cancer",
-      "cnt": 9227
+      "cnt": 18454
     },
     {
       "_id": "Asthma",
-      "cnt": 9185
+      "cnt": 18370
     }
   ]
 }

@@ -172,6 +172,23 @@ def postcheck(mongo_uri: str = os.getenv("MONGO_URI", "mongodb://app_user:app_pa
         json.dump(stats, f, indent=2, default=str)
     print(f"Wrote {report}")
 
+@app.command()
+def test(csv_path: str = "data/healthcare_dataset.csv",
+         mongo_uri: str = os.getenv("MONGO_URI", "mongodb://app_user:app_pass@localhost:27017/healthcare?authSource=healthcare"),
+         db_name: str = "healthcare",
+         coll_name: str = "encounters"):
+    p = Path(csv_path); assert p.exists(), f"CSV not found: {p}"
+    # 1) Re-lire et compter
+    df = pd.read_csv(p, dtype=str, keep_default_na=False)
+    csv_rows = len(df)
+    # 2) BDD compte
+    client = MongoClient(mongo_uri)
+    total = client[db_name][coll_name].estimated_document_count()
+    # 3) Assertions simples
+    assert total == csv_rows, f"Count mismatch: csv={csv_rows}, mongo={total}"
+    print(json.dumps({"csv_rows": csv_rows, "mongo_docs": total, "status": "ok"}, indent=2))
+
+
 if __name__ == "__main__":
     app()
 

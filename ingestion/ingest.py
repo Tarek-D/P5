@@ -1,4 +1,3 @@
-# ingestion/ingest.py
 import csv, sys, json, hashlib, datetime as dt, os
 from pathlib import Path
 import typer
@@ -10,6 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 app = typer.Typer(no_args_is_help=True)
 
+# Colonnes obligatoires dans le CSV, ordre recommandé
 REQUIRED_COLS = [
     "Name","Age","Gender","Blood Type","Medical Condition","Date of Admission",
     "Doctor","Hospital","Insurance Provider","Billing Amount","Room Number",
@@ -17,28 +17,51 @@ REQUIRED_COLS = [
 ]
 
 def sha256_file(path: Path) -> str:
+    """
+    Calcule le hash SHA256 d'un fichier, utilisé pour tracer la source et
+    vérifier l'intégrité des données d'entrée.
+    """
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(1<<20), b""):
             h.update(chunk)
     return h.hexdigest()
 
+
 @app.command()
-def validate(csv_path: str, report: str = "reports/pre_ingest.json"):
+def validate(csv_path: str,
+             report: str = "reports/pre_ingest.json"):
+    """
+    Validation des données avant ingestion:
+    - Vérifie la présence des colonnes requises
+    - Analyse l'intégrité des types des colonnes importantes (nombres, dates, enums)
+    - Detecte les colonnes manquantes ou supplémentaires
+    - Calcule les doublons potentiels
+    - Enregistre un rapport JSON de pré-ingestion avec tous ces indicateurs
+
+    Args:
+      csv_path: Chemin vers le CSV d'entrée
+      report: Chemin vers le fichier JSON de rapport à produire
+
+    Raises:
+      AssertionError si le fichier CSV n'existe pas
+    """
     p = Path(csv_path)
     assert p.exists(), f"CSV not found: {p}"
     df = pd.read_csv(p, dtype=str, keep_default_na=False)
+
     cols = list(df.columns)
     missing_cols = [c for c in REQUIRED_COLS if c not in cols]
     extra_cols = [c for c in cols if c not in REQUIRED_COLS]
 
-    def to_int(s):
+    # Fonctions d’aide pour tester les types
+    def to_int(s):  # conversion sécurisée en int
         try: return int(str(s).strip())
         except: return None
-    def to_float(s):
+    def to_float(s):  # conversion en float
         try: return float(str(s).strip())
         except: return None
-    def to_date(s):
+    def to_date(s):  # conversion en date pandas
         try: return pd.to_datetime(s, errors="raise").date()
         except: return None
 
@@ -48,10 +71,10 @@ def validate(csv_path: str, report: str = "reports/pre_ingest.json"):
     checks["missing_required_columns"] = missing_cols
     checks["extra_columns"] = extra_cols
 
+    # Tests de validité sur plusieurs colonnes clés
     df["_Age_ok"] = df["Age"].map(to_int)
     df["_Room_ok"] = df["Room Number"].map(to_int)
     df["_Amount_ok"] = df["Billing Amount"].map(to_float)
-
     df["_Adm_ok"] = df["Date of Admission"].map(to_date)
     df["_Dis_ok"] = df["Discharge Date"].map(lambda s: to_date(s) if str(s).strip() != "" else None)
 
@@ -60,6 +83,7 @@ def validate(csv_path: str, report: str = "reports/pre_ingest.json"):
     df["_Gender_ok"] = df["Gender"].map(lambda x: str(x).strip().capitalize() in genders)
     df["_Blood_ok"] = df["Blood Type"].map(lambda x: str(x).strip().upper() in bloods)
 
+    # Résumé des résultats d’intégrité
     checks["integrity"] = {
         "Age_numeric_invalid": int(df["_Age_ok"].isna().sum()),
         "Room_numeric_invalid": int(df["_Room_ok"].isna().sum()),
@@ -73,6 +97,7 @@ def validate(csv_path: str, report: str = "reports/pre_ingest.json"):
         }
     }
 
+    # Duplicates potentiels basée sur un composite key si colonnes présentes
     key_cols = ["Name","Date of Admission","Hospital"]
     if all(c in df.columns for c in key_cols):
         df["_key"] = (df["Name"].astype(str).str.strip().str.upper()
@@ -83,11 +108,16 @@ def validate(csv_path: str, report: str = "reports/pre_ingest.json"):
         dups = None
     checks["potential_duplicates"] = dups
 
+    # Enregistrement du hash SHA du CSV source
     checks["source_sha256"] = sha256_file(p)
+
+    # Sauvegarde du rapport JSON dans report
     Path(report).parent.mkdir(parents=True, exist_ok=True)
     with open(report, "w") as f:
         json.dump(checks, f, indent=2, default=str)
+
     print(f"Wrote {report}")
+
 
 @app.command()
 def load(csv_path: str,
@@ -96,13 +126,38 @@ def load(csv_path: str,
          coll_name: str = "encounters",
          rejects_path: str = "data/rejects.jsonl",
          chunk_size: int = 5000):
-    p = Path(csv_path); assert p.exists(), f"CSV not found: {p}"
+    """
+    Chargement dans MongoDB:
+    - Parse les lignes CSV en documents JSON métiers
+    - Vérifie la cohérence des enums (genre, groupe sanguin)
+    - Écrit les rejets dans un fichier JSONL détaillé
+    - Charge par bulk_write en chunk pour efficacité
+
+    Args:
+      csv_path: chemin CSV source
+      mongo_uri: URI connexion MongoDB
+      db_name: nom de la base MongoDB
+      coll_name: collection MongoDB cible
+      rejects_path: chemin fichier rejet
+      chunk_size: taille d’un chunk en nombre de lignes entre bulk writes
+
+    Raises:
+      AssertionError si CSV introuvable
+    """
+    p = Path(csv_path)
+    assert p.exists(), f"CSV not found: {p}"
     client = MongoClient(mongo_uri)
-    db = client[db_name]; coll = db[coll_name]
+    db = client[db_name]
+    coll = db[coll_name]
+
     bloods = {"A+","A-","B+","B-","AB+","AB-","O+","O-"}
     genders = {"Male","Female"}
 
     def parse_row(r):
+        """
+        Parse une ligne CSV en document Mongo structuré
+        et valide les enums. Retourne tuple (doc, erreur).
+        """
         try:
             name = str(r["Name"]).strip().title()
             age = int(str(r["Age"]).strip())
@@ -153,13 +208,27 @@ def load(csv_path: str,
                 ok += len(ops)
     print(json.dumps({"read": total, "inserted": ok, "rejected": bad}, indent=2))
 
+
 @app.command()
 def postcheck(mongo_uri: str = os.getenv("MONGO_URI", "mongodb://app_user:app_pass@localhost:27017/healthcare?authSource=healthcare"),
               db_name: str = "healthcare",
               coll_name: str = "encounters",
               report: str = "reports/post_ingest.json"):
+    """
+    Contrôle post-ingestion:
+    - Compte les documents insérés
+    - Calcule les 10 conditions médicales les plus fréquentes
+    - Génère un rapport JSON final
+
+    Args:
+      mongo_uri: URI de connexion MongoDB
+      db_name: nom de la base
+      coll_name: nom de la collection cible
+      report: chemin du fichier JSON rapport post_ingestion
+    """
     client = MongoClient(mongo_uri)
-    db = client[db_name]; coll = db[coll_name]
+    db = client[db_name]
+    coll = db[coll_name]
     total = coll.estimated_document_count()
     agg = list(coll.aggregate([
         {"$group": {"_id": "$medical.condition", "cnt": {"$sum": 1}}},
@@ -177,7 +246,11 @@ def test(csv_path: str = "data/healthcare_dataset.csv",
          mongo_uri: str = os.getenv("MONGO_URI", "mongodb://app_user:app_pass@localhost:27017/healthcare?authSource=healthcare"),
          db_name: str = "healthcare",
          coll_name: str = "encounters"):
-    p = Path(csv_path); assert p.exists(), f"CSV not found: {p}"
+    """
+    Commande test pour valider la cohérence nombre de lignes CSV / documents Mongo.
+    """
+    p = Path(csv_path)
+    assert p.exists(), f"CSV not found: {p}"
     # 1) Re-lire et compter
     df = pd.read_csv(p, dtype=str, keep_default_na=False)
     csv_rows = len(df)
@@ -191,4 +264,5 @@ def test(csv_path: str = "data/healthcare_dataset.csv",
 
 if __name__ == "__main__":
     app()
+# évite que le code CLI démarre dès qu’on importe le fichier, réservant `app()` à la seule exécution directe
 

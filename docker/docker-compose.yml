@@ -1,28 +1,32 @@
+version: "3.9"
+
+volumes:
+  mongo_: {}
+  raw_csv: {}
+  processed_csv: {}
+
 services:
   mongodb:
-    image: mongo:7.0
+    image: mongo:6
     container_name: mongodb
     restart: unless-stopped
-    ports:
-      - '27017:27017'
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASS:-rootpass}
+    ports: ["27017:27017"]
     volumes:
-      - ./docker/mongo_db:/data/db
-      - "${PWD}:/data/project"
+      - mongo_/data/db
 
   ingester:
-    image: python:3.11-slim
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.ingester
     container_name: ingester
-    depends_on:
-      - mongodb
-    working_dir: /data/project
+    depends_on: [mongodb]
     environment:
-      MONGO_URI: "mongodb://mongodb:27017/healthcare"
+      MONGO_URI: ${MONGO_URI:-mongodb://mongodb:27017/healthcare}
+    working_dir: /app
     volumes:
-      - "${PWD}:/data/project"
-    command: >
-      sh -c "
-        pip install --no-cache-dir -r requirements.txt &&
-        python ingestion/ingest.py validate data/healthcare_dataset.csv --report reports/pre_ingest.json &&
-        python ingestion/ingest.py load data/healthcare_dataset.csv &&
-        python ingestion/ingest.py postcheck
-      "
+      - ./:/app:rw              # code et README
+      - raw_csv:/app/raw:rw     # CSV bruts
+      - processed_csv:/app/rw  # CSV nettoyés/rejets

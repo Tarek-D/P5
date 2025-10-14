@@ -2,9 +2,9 @@ import pandas as pd
 from pathlib import Path
 
 # Paramètres
-SOURCE = "data/healthcare_dataset.csv"
-OUT_CLEAN = "data/healthcare_cleaned.csv"
-OUT_REJECTS = "data/healthcare_rejects.csv"
+SOURCE = "/app/raw/healthcare_dataset.csv"
+OUT_CLEAN = "/app/data/healthcare_cleaned.csv"
+OUT_REJECTS = "/app/data/healthcare_rejects.csv"
 
 # Schéma attendu
 REQUIRED_COLS = [

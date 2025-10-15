@@ -9,16 +9,18 @@ services:
       - ./docker/mongo:/data/db
 
   ingester:
-    image: python:3.11-slim
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.ingester
     container_name: ingester
     working_dir: /app
     entrypoint: ["bash","-lc"]
     environment:
       MONGO_URI: ${MONGO_URI:-mongodb://mongodb:27017/healthcare}
     volumes:
-      - ./:/app:rw           # monte la racine du projet dans /app
-      - p5_raw_csv:/app/raw  # volume pour CSV bruts
-      - p5_processed_csv:/app/data # volume pour CSV nettoyés
+      - ./:/app:rw
+      - p5_raw_csv:/app/raw
+      - p5_processed_csv:/app/data
 
 volumes:
   p5_raw_csv: {}

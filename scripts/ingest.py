@@ -24,7 +24,7 @@ from pymongo import MongoClient, InsertOne
 from bson.decimal128 import Decimal128
 from dotenv import load_dotenv
 
-# Charger les variables d'environnement (.env optionnel)
+# Charger les variables d'environnement 
 load_dotenv()
 
 app = typer.Typer(no_args_is_help=True)
@@ -38,7 +38,7 @@ DEFAULT_URI = os.getenv("MONGO_URI", "mongodb://mongodb:27017/healthcare")
 def row_to_doc(r: pd.Series, src_file: str) -> dict:
     """
     Convertit une ligne du CSV nettoyé en document MongoDB structuré.
-    Hypothèse: les colonnes et types ont été validés en amont.
+    Les colonnes et types ont été validés en amont.
     """
     # Champs patient
     name = str(r["Name"]).strip().title()

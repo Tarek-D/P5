@@ -1,89 +1,201 @@
-# P5
-Migrez des données médicales à l'aide du NoSQL
+Voici un README complet, prêt à l’emploi, qui reflète l’architecture actuelle, les commandes, et les correctifs d’auth Mongo intégrés.
 
-# README — Migration CSV vers MongoDB
+# P5 Healthcare ETL + Mongo Ingestion
 
-### Contexte
-Ce projet migre un dataset médical au format CSV vers MongoDB avec un script Python qui valide, typage/normalise puis insère les données dans une collection encounters, en produisant des rapports avant et après ingestion pour la traçabilité, la qualité et le contrôle de volumétrie. [1][2][3]
+Pipeline de préparation et d’ingestion de données healthcare vers MongoDB, packagé avec Docker Compose. Le pipeline nettoie un CSV de 50k lignes, prépare un fichier nettoyé, puis ingère en masse dans MongoDB. Une étape finale contrôle le volume inséré.
 
-### Données sources
-Le fichier source est healthcare_dataset.csv et contient 15 colonnes: Name, Age, Gender, Blood Type, Medical Condition, Date of Admission, Doctor, Hospital, Insurance Provider, Billing Amount, Room Number, Admission Type, Discharge Date, Medication, Test Results. [1]
+## Prérequis
 
-### Résultats attendus
-- Un script unique ingestion/ingest.py proposant trois commandes: validate (pré‑ingestion), load (ingestion), postcheck (contrôles post‑ingestion) pour une exécution reproductible, observable et documentée. [1]
-- Des rapports JSON: reports/pre_ingest.json et reports/post_ingest.json, confirmant structure, intégrité, volume et répartitions clés. [2][3]
+- Docker et Docker Compose installés
+- Port 27017 disponible en local
+- Espace disque suffisant pour le volume Mongo
 
-### Structure du projet
-- data/: healthcare_dataset.csv (source), rejects.jsonl (rejets éventuels créés lors du load). [1]
-- ingestion/: ingest.py (CLI Typer avec validate, load, postcheck). [1]
-- reports/: pre_ingest.json, post_ingest.json (générés par le script). [2][3]
-- logs/: réservé pour des logs additionnels si nécessaire. [1]
+## Structure du projet
 
-### Prérequis
-- macOS ou Linux avec Python 3.11+ et MongoDB en local, ou connexion vers une instance accessible avec un utilisateur readWrite sur la base healthcare. [1]
-- Paquets Python: pandas, pymongo, python-dotenv, typer, pydantic (voir requirements.txt). [1]
+- docker-compose.yml
+- run_pipeline.sh
+- requirements.txt
+- scripts/prepare_clean_data.py
+- scripts/ingest.py
+- data/healthcare_dataset.csv (source brute)
+- data/healthcare_cleaned.csv (généré)
+- docker/init/01-create-user.js (init user Mongo)
+- .env (variables d’environnement)
 
-### Installation
-- Installer les dépendances: pip install -r requirements.txt. [1]
-- Vérifier MongoDB en local (exemples mongosh): ping et création d’un utilisateur applicatif app_user sur la base healthcare si nécessaire. [1]
-- Optionnel: définir MONGO_URI dans un fichier .env à la racine, par exemple mongodb://app_user:app_pass@localhost:27017/healthcare?authSource=healthcare. [1]
+## Variables d’environnement (.env)
 
-### Commandes
-- Validation pré‑ingestion: python ingestion/ingest.py data/healthcare_dataset.csv --report reports/pre_ingest.json écrit un rapport avec compte de lignes, présence des colonnes, contrôles de types/dates/enums et estimation des doublons potentiels. [1][2]
-- Chargement: python ingestion/ingest.py load data/healthcare_dataset.csv lit en chunks, normalise, caste (Date, Int, Decimal128) et insère en bulk dans healthcare.encounters, en journalisant les rejets éventuels dans data/rejects.jsonl; un résumé read/inserted/rejected s’affiche. [1]
-- Post‑contrôle: python ingestion/ingest.py postcheck génère reports/post_ingest.json avec total_docs et un top des conditions médicales. [1][3]
+Créer un fichier .env à la racine avec:
 
-### Exemple de résultats
-- pre_ingest.json indique 55 500 lignes, aucune colonne manquante, 0 invalidité de type/date/enum et pas de valeurs manquantes détectées dans les colonnes suivies. [2]
-- post_ingest.json indique total_docs = 55 500 et un top des conditions: Arthritis, Diabetes, Hypertension, Obesity, Cancer, Asthma avec des volumes élevés et cohérents. [3]
+```bash
+# Utilisateur root Mongo (créé au premier démarrage du volume)
+MONGO_INITDB_ROOT_USERNAME=root
+MONGO_INITDB_ROOT_PASSWORD=change_me
 
-### Schéma cible (document MongoDB)
-- patient: name (String), age (Int32), gender (String), blood_type (String). [1]
-- visit: admission_date (Date), discharge_date (Date|null), admission_type (String), room_number (Int32). [1]
-- medical: condition (String), medication (String), test_results (String). [1]
-- admin: doctor (String), hospital (String), insurance_provider (String). [1]
-- billing: amount (Decimal128). [1]
-- src: file (String), ingested_at (Date). [1]
+# URI utilisée par l’ingester (utilisateur applicatif)
+MONGO_URI=mongodb://app_user:app_pass@mongodb:27017/healthcare?authSource=admin
+```
 
-### Index recommandés
-- Composé: { admin.hospital: 1, visit.admission_date: 1 } pour recherches temporelles par établissement. [1]
-- Simples: medical.condition, admin.insurance_provider, billing.amount pour filtrages fréquents. [1]
-- Texte optionnel: patient.name et admin.doctor pour recherche libre. [1]
+Notes:
+- L’utilisateur applicatif app_user/app_pass sera créé automatiquement par le script d’init au premier démarrage d’un volume vierge.
+- MONGO_URI doit contenir authSource=admin car l’utilisateur est créé dans la base admin avec rôle readWrite sur healthcare.
 
-### Exemples CRUD
-- Create: insertion d’un document encounter conforme via PyMongo ou mongosh. [1]
-- Read: find par medical.condition avec projection patient.name et tri par visit.admission_date. [1]
-- Update: set medical.test_results pour un _id donné. [1]
-- Delete: delete_one sur une clé naturelle dérivée (Name|Date of Admission|Hospital) si utilisée en amont. [1]
+## Script d’initialisation Mongo (idempotent)
 
-### Qualité et intégrité
-- La commande validate exécute les contrôles de structure, types numériques, dates parseables, enums Gender/Blood Type et signale les lignes vides par colonne, ainsi que des doublons potentiels sur la clé Name|Date of Admission|Hospital. [2]
-- La commande load écrit un fichier rejects.jsonl avec la ligne source et la raison du rejet si un enregistrement échoue la normalisation/typage/enum. [1]
+Placé dans docker/init/01-create-user.js, exécuté automatiquement uniquement lors de l’initialisation d’un volume vierge:
 
-### Dépannage
-- Tirets et guillemets: veiller à saisir des “--” ASCII pour les options et des guillemets droits " dans mongosh; les caractères typographiques provoquent des erreurs de parsing. [1]
-- Module bson: utiliser pymongo (qui fournit bson) et éviter d’installer un paquet tiers bson séparé; en cas de conflit, désinstaller le paquet bson non officiel. [1]
-- Connexion: si MONGO_URI n’est pas défini, le script utilise par défaut mongodb://app_user:app_pass@localhost:27017/healthcare?authSource=healthcare. [1]
+```javascript
+db = db.getSiblingDB('admin');
 
-### Traçabilité
-- pre_ingest.json inclut le hash SHA‑256 du CSV source pour vérifier l’immuabilité des données de référence et faciliter des relectures reproductibles. [2]
-- post_ingest.json fournit des métriques rapides confirmant le volume inséré et la distribution des conditions. [3]
+const user = process.env.MONGO_INITDB_ROOT_USERNAME || 'app_user';
+const pwd  = process.env.MONGO_INITDB_ROOT_PASSWORD || 'app_pass';
+const appDb = 'healthcare';
 
-Souhaité pour l’étape suivante: générer rapidement les commandes Mongo d’indexation et, si besoin, ajouter un validateur JSON Schema à la collection encounters pour renforcer le typage à l’écriture. [1]
+const exists = db.getUser(user);
+if (!exists) {
+  db.createUser({
+    user: user,
+    pwd:  pwd,
+    roles: [{ role: 'readWrite', db: appDb }]
+  });
+} else {
+  // Optionnel: mettre à jour mot de passe/roles si nécessaire
+  // db.updateUser(user, { pwd: pwd, roles: [{ role: 'readWrite', db: appDb }] });
+}
+```
 
-Sources
-[1] healthcare_dataset.csv https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/53032499/26dacc55-a1e7-4b8c-8d7e-d590f3894bf0/healthcare_dataset.csv
-[2] pre_ingest.json https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/53032499/2edec6cd-65bd-4372-9028-e632835967fc/pre_ingest.json
-[3] post_ingest.json https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/53032499/289b1e8c-95f0-4ba6-a0fa-815cbb51eca0/post_ingest.json
+Important:
+- Les scripts d’init ne se rejouent que si le volume de données Mongo est vierge (après un down -v par exemple).
 
-# DOCKER 
+## Démarrage des services
 
-# 1) Démarrer MongoDB
-docker compose -f docker/docker-compose.yml up -d mongodb
+Démarrer Mongo seul (recommandé pour initialiser l’utilisateur applicatif):
 
-# 2) Exécuter la migration (validate → load → postcheck)
-docker compose -f docker/docker-compose.yml run --rm ingester
+```bash
+docker compose up -d mongodb
+```
 
-# 3) Vérifier MongoDB
-docker exec -it mongodb mongosh --quiet --eval "db.adminCommand({ ping: 1 })"
-# Attendu: { ok: 1 }
+Attendre quelques secondes que l’initialisation s’exécute. Pour repartir de zéro (réinitialisation complète):
+
+```bash
+docker compose down -v
+docker compose up -d mongodb
+```
+
+## Exécution du pipeline complet
+
+Le pipeline fait:
+1/7 Téléchargement / préparation des dossiers (optionnel selon script)
+2/7 Préparation des données (clean CSV)
+3/7 Validation du CSV
+4/7 Construction image ingester
+5/7 Vérifications pré-ingest (connexion Mongo)
+6/7 Ingestion en bulk
+7/7 Contrôle en base (count)
+
+Commande:
+
+```bash
+bash run_pipeline.sh
+```
+
+Exemples de sorties attendues:
+
+- Préparation:
+  - Génère data/healthcare_cleaned.csv
+- Ingestion:
+  - Affiche un récapitulatif
+  - inserted: 50000
+- Contrôle:
+  - estimatedDocumentCount() ≈ 50000
+
+## Étapes manuelles (si besoin)
+
+Nettoyage:
+
+```bash
+docker compose run --rm ingester python scripts/prepare_clean_data.py
+```
+
+Ingestion:
+
+```bash
+docker compose run --rm ingester python scripts/ingest.py load
+```
+
+Test connexion Mongo depuis ingester:
+
+```bash
+docker compose run --rm ingester python -c "from pymongo import MongoClient; import os; print('URI=', os.getenv('MONGO_URI')); c=MongoClient(os.getenv('MONGO_URI')); print(c.list_database_names())"
+```
+
+Test contrôle en base (mongosh dans le conteneur Mongo):
+
+```bash
+docker exec -i mongodb mongosh "mongodb://app_user:app_pass@mongodb:27017/healthcare?authSource=admin" --eval 'db.encounters.estimatedDocumentCount()'
+```
+
+Astuce: pour ne pas exposer l’URI en clair dans la commande, sourcer .env avant:
+
+```bash
+set -a
+[ -f .env ] && . ./.env
+set +a
+docker exec -i mongodb sh -lc 'mongosh "$MONGO_URI" --eval "db.getSiblingDB(\"healthcare\").encounters.estimatedDocumentCount()"'
+```
+
+## Points d’attention
+
+- Auth Mongo:
+  - L’ingestion réussit uniquement si l’utilisateur applicatif existe et si MONGO_URI contient authSource=admin.
+  - En cas d’erreur “Authentication failed, code 18”, vérifier:
+    - Existence de app_user dans admin (mongosh: use admin; db.getUsers())
+    - MONGO_URI dans env du conteneur ingester (docker compose run --rm ingester env | grep MONGO_URI)
+- REPL Python qui s’ouvre à la place du script:
+  - Éviter un entrypoint ["bash","-lc"] sur le service ingester (retirer cette ligne si présente).
+  - Lancer avec: docker compose run --rm ingester python scripts/ingest.py load
+  - Si besoin de passer “--” pour transmettre les args: docker compose run --rm ingester -- python scripts/ingest.py load
+- Commande count dépréciée:
+  - Utiliser countDocuments({}) ou estimatedDocumentCount() plutôt que count().
+- Rejeu automatique de la création d’utilisateur:
+  - Les scripts d’init ne rejouent que sur volume vierge. Si tu veux forcer la création à chaque run, ajoute une étape de vérification dans run_pipeline.sh qui appelle mongosh et crée l’utilisateur s’il n’existe pas.
+
+## Exemples de snippets utiles
+
+Contrôle final dans run_pipeline.sh (recommandé):
+
+```bash
+echo "[7/7] Contrôle en base"
+docker exec -i mongodb mongosh "mongodb://app_user:app_pass@mongodb:27017/healthcare?authSource=admin" --eval 'db.encounters.estimatedDocumentCount()'
+```
+
+Ou, en sourçant .env pour ne pas exposer l’URI:
+
+```bash
+set -a
+[ -f .env ] && . ./.env
+set +a
+echo "[7/7] Contrôle en base"
+docker exec -i mongodb sh -lc 'mongosh "$MONGO_URI" --eval "db.getSiblingDB(\"healthcare\").encounters.estimatedDocumentCount()"'
+```
+
+## Dépannage rapide
+
+- “Authentication failed.”:
+  - Vérifier db.getUsers() dans admin, présence de app_user, et authSource=admin dans l’URI.
+- “command count requires authentication”:
+  - La vérification finale n’utilise pas l’URI authentifiée. Utiliser mongosh avec MONGO_URI ou avec app_user/app_pass.
+- “mongosh: command not found”:
+  - Lancer mongosh dans le conteneur mongodb (docker exec -i mongodb mongosh ...), ou installer mongosh dans l’image où tu l’appelles.
+- REPL Python vs exécution script:
+  - Retirer entrypoint bash du service ingester et passer l’argument load correctement.
+
+## Sécurité et bonnes pratiques
+
+- Éviter d’utiliser le compte root pour l’application; préférer app_user avec readWrite sur healthcare.
+- Ne pas commiter .env en clair; utiliser des secrets ou variables CI/CD en production.
+- Documenter la procédure de reset dev (down -v) pour rejouer l’initialisation de Mongo.
+
+## Licence
+
+Projet à usage pédagogique. Adapter les licences des dépendances selon vos contraintes.
+

@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+set -a
+[ -f .env ] && . ./.env
+set +a
+
 set -euo pipefail
 
 echo "[1/7] Build image ingester"
@@ -29,7 +33,7 @@ docker compose run --rm ingester "python scripts/prepare_clean_data.py"
 docker compose run --rm ingester "ls -lh /app/data/healthcare_cleaned.csv /app/data/healthcare_rejects.csv"
 
 echo "[6/7] Ingestion MongoDB"
-docker compose run --rm ingester "python scripts/ingest.py load"
+docker compose run --rm ingester "python scripts/ingest.py"
 
 echo "[7/7] Contrôle en base"
-docker exec -i mongodb mongosh "mongodb://mongodb:27017/healthcare" --eval 'db.encounters.estimatedDocumentCount()'
+docker compose run --rm ingester "python scripts/verify_migration.py"

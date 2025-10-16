@@ -7,11 +7,16 @@ services:
       - "27017:27017"
     volumes:
       - ./docker/mongo:/data/db
-
+      - ./docker/init:/docker-entrypoint-initdb.d
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-example}
   ingester:
     build:
       context: .
       dockerfile: docker/Dockerfile.ingester
+    env_file:
+      - .env
     container_name: ingester
     working_dir: /app
     entrypoint: ["bash","-lc"]

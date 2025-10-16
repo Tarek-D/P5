@@ -6,7 +6,7 @@ services:
     ports:
       - "27017:27017"
     volumes:
-      - ./docker/mongo:/data/db
+      - ./:/app
       - ./docker/init:/docker-entrypoint-initdb.d
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-root}
@@ -17,16 +17,17 @@ services:
       dockerfile: docker/Dockerfile.ingester
     env_file:
       - .env
+    depends_on:
+      - mongodb  
     container_name: ingester
     working_dir: /app
-    entrypoint: ["bash","-lc"]
     environment:
       MONGO_URI: ${MONGO_URI:-mongodb://mongodb:27017/healthcare}
     volumes:
       - ./:/app:rw
-      - p5_raw_csv:/app/raw
-      - p5_processed_csv:/app/data
+      - raw_csv:/app/raw
+      - processed_csv:/app/data
 
 volumes:
-  p5_raw_csv: {}
-  p5_processed_csv: {}
+  raw_csv: {}
+  processed_csv: {}

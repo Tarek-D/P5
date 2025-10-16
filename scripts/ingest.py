@@ -1,23 +1,9 @@
 #!/usr/bin/env python3
 # scripts/ingest.py
-#
-# Ingestion minimale d'un CSV déjà nettoyé vers MongoDB.
-# - Aucune validation ni déduplication ici (faites en amont).
-# - Insertions en bulk pour de bonnes performances.
-# - La base/collection sont créées implicitement au premier insert.
-# - Les chemins par défaut visent un setup Docker avec volumes:
-#   * /app/raw       -> données brutes (non utilisées ici)
-#   * /app/data      -> données nettoyées (entrée de ce script)
-#
-# Utilisation:
-#   python scripts/ingest.py load            # charge /app/data/healthcare_cleaned.csv
-#   python scripts/ingest.py load --csv-path data/healthcare_cleaned.csv
-#   MONGO_URI="mongodb://mongodb:27017/healthcare" python scripts/ingest.py load
 
 import os
 import json
 from pathlib import Path
-
 import typer
 import pandas as pd
 from pymongo import MongoClient, InsertOne
@@ -121,11 +107,6 @@ def load(
             inserted += len(ops)
 
     print(json.dumps({"read": total, "inserted": inserted}, indent=2, default=str))
-
-@app.command()
-def purge(mongo_uri: str = DEFAULT_URI, db_name: str = DEFAULT_DB, coll_name: str = DEFAULT_COLL):
-    MongoClient(mongo_uri)[db_name][coll_name].delete_many({})
-    print("Purged collection")
 
 if __name__ == "__main__":
     app()

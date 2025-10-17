@@ -37,3 +37,7 @@ docker compose run --rm ingester "python scripts/ingest.py"
 
 echo "[7/7] Contrôle en base"
 docker compose run --rm ingester "python scripts/verify_migration.py"
+
+# -------- Export Read JSONL --------
+echo "[export] Export JSONL (Read) en cours..."
+docker compose run --rm ingester "python scripts/export_read_jsonl.py"

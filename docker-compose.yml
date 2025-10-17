@@ -31,3 +31,7 @@ services:
 volumes:
   raw_csv: {}
   processed_csv: {}
+networks:
+  app_net:
+    name: p5_app_net
+    driver: bridge

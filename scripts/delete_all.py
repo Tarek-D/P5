@@ -6,8 +6,8 @@ CRUD: DELETE — Effacer tous les documents de toutes les collections d'une base
 
 Comportement:
 - Lit la config depuis les variables d'environnement (ex: injectées par Docker Compose via .env)
-  - MONGO_URI  (obligatoire) ex: mongodb://user:pass@mongodb:27017/admin?authSource=admin
-  - MONGO_DB   (obligatoire) ex: healthcare
+    - MONGO_URI : URI de connexion MongoDB
+    - MONGO_DB  : Nom de la base de données
 - Parcourt db.list_collection_names() et exécute delete_many({}) sur chaque collection.
 - Conserve la base et les index (ne drop pas les collections).
 

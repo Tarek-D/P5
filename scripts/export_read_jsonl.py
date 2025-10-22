@@ -5,14 +5,6 @@
 Export JSONL (1 doc/ligne) d'une collection MongoDB via un "Read" applicatif.
 - Robuste aux gros volumes (stream + batch_size)
 - Session explicite + no_cursor_timeout pour éviter l'idle timeout des curseurs
-- Paramétrage par variables d'environnement
-
-Variables d'environnement:
-  MONGO_URI   (obligatoire) ex: mongodb://user:pass@localhost:27017/admin?authSource=admin
-  MONGO_DB    (défaut: healthcare)
-  MONGO_COLL  (défaut: encounters)
-  OUT_FILE    (défaut: ./exports/<db>_<coll>.jsonl)
-  BATCH_SIZE  (défaut: 5000)
 """
 
 import os
@@ -31,10 +23,8 @@ def getenv_required(key: str) -> str:
         raise SystemExit(f"[export] Missing required env var: {key}")
     return val
 
-
 def ensure_parent_dir(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-
 
 def export_jsonl(
     mongo_uri: str,

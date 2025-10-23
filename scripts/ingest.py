@@ -79,8 +79,12 @@ def load(
 ):
     """
     Charge le CSV nettoyé en base MongoDB via insertions bulk.
-    - Ne crée aucun index ici.
-    - Supposé: dataset sans doublons et types déjà propres.
+    Args:
+        csv_path: Chemin vers le fichier CSV nettoyé.
+        mongo_uri: URI de connexion MongoDB.
+        db_name: Nom de la base de données.
+        coll_name: Nom de la collection.
+        chunk_size: Nombre de lignes à lire/insérer par chunk.
     """
     p = Path(csv_path)
     if not p.exists():

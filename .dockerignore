@@ -1,0 +1,8 @@
+/tests
+/schema
+/scripts/__pycache__
+/.venv
+.env
+.DS_Store
+**/.DS_Store
+/exports

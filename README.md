@@ -195,7 +195,3 @@ docker exec -i mongodb sh -lc 'mongosh "$MONGO_URI" --eval "db.getSiblingDB(\"he
 - Ne pas commiter .env en clair; utiliser des secrets ou variables CI/CD en production.
 - Documenter la procédure de reset dev (down -v) pour rejouer l’initialisation de Mongo.
 
-## Licence
-
-Projet à usage pédagogique. Adapter les licences des dépendances selon vos contraintes.
-

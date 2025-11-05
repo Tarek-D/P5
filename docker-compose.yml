@@ -9,8 +9,8 @@ services:
       - ./:/app
       - ./docker/init:/docker-entrypoint-initdb.d
     environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-root}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-example}
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
   ingester:
     build:
       context: .
@@ -22,7 +22,7 @@ services:
     container_name: ingester
     working_dir: /app
     environment:
-      MONGO_URI: ${MONGO_URI:-mongodb://mongodb:27017/healthcare}
+      MONGO_URI: ${MONGO_URI}
     volumes:
       - ./:/app:rw
       - raw_csv:/app/raw

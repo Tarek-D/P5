@@ -41,3 +41,9 @@ docker compose run --rm ingester "python scripts/verify_migration.py"
 # -------- Export Read JSONL --------
 echo "[export] Export JSONL (Read) en cours..."
 docker compose run --rm ingester "python scripts/export_read_jsonl.py"
+
+# -------- Cleanup .env --------
+echo "[cleanup] Suppression du fichier .env dans le conteneur ingester"
+docker compose run --rm ingester "rm -f /app/.env"
+
+echo "Pipeline terminé avec succès."

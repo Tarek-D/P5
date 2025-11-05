@@ -13,11 +13,17 @@ Pipeline de préparation et d’ingestion de données healthcare vers MongoDB, p
 - docker-compose.yml
 - run_pipeline.sh
 - requirements.txt
-- scripts/prepare_clean_data.py
-- scripts/ingest.py
+- scripts/
+  - prepare_clean_data.py
+  - ingest.py
+  - export_read_jsonl.py
+  - delete_all.py
+  - verify_migration.py
 - data/healthcare_dataset.csv (source brute)
 - data/healthcare_cleaned.csv (généré)
-- docker/init/01-create-user.js (init user Mongo)
+- docker/
+  - init/01-create-user.js (init user Mongo)
+  - Dockerfile.ingester
 - .env (variables d’environnement)
 
 ## Variables d’environnement (.env)
@@ -37,7 +43,7 @@ Notes:
 - L’utilisateur applicatif app_user/app_pass sera créé automatiquement par le script d’init au premier démarrage d’un volume vierge.
 - MONGO_URI doit contenir authSource=admin car l’utilisateur est créé dans la base admin avec rôle readWrite sur healthcare.
 
-## Script d’initialisation Mongo (idempotent)
+## Script d’initialisation Mongo
 
 Placé dans docker/init/01-create-user.js, exécuté automatiquement uniquement lors de l’initialisation d’un volume vierge:
 
@@ -59,11 +65,12 @@ if (!exists) {
   // Optionnel: mettre à jour mot de passe/roles si nécessaire
   // db.updateUser(user, { pwd: pwd, roles: [{ role: 'readWrite', db: appDb }] });
 }
+```
 
 ## Exécution du pipeline complet
 
 Le pipeline fait:
-1/7 Téléchargement / préparation des dossiers (optionnel selon script)
+1/7 Téléchargement / préparation des dossiers 
 2/7 Préparation des données (clean CSV)
 3/7 Validation du CSV
 4/7 Construction image ingester
@@ -74,7 +81,7 @@ Fin du pipeline
 - Export de la base de données 
 - Effacement du fichier .env
 
-Avant de lancer la commande Docker doit etre en cours d'éxécution sur la machine.
+⚠ Avant de lancer la commande Docker doit etre en cours d'éxécution sur la machine.
 
 Commande:
 

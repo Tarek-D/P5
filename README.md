@@ -1,5 +1,3 @@
-Voici un README complet, prêt à l’emploi, qui reflète l’architecture actuelle, les commandes, et les correctifs d’auth Mongo intégrés.
-
 # P5 Healthcare ETL + Mongo Ingestion
 
 Pipeline de préparation et d’ingestion de données healthcare vers MongoDB, packagé avec Docker Compose. Le pipeline nettoie un CSV de 50k lignes, prépare un fichier nettoyé, puis ingère en masse dans MongoDB. Une étape finale contrôle le volume inséré.
@@ -28,8 +26,8 @@ Créer un fichier .env à la racine avec:
 
 ```bash
 # Utilisateur root Mongo (créé au premier démarrage du volume)
-MONGO_INITDB_ROOT_USERNAME=root
-MONGO_INITDB_ROOT_PASSWORD=change_me
+MONGO_INITDB_ROOT_USERNAME=app_user
+MONGO_INITDB_ROOT_PASSWORD=app_pass
 
 # URI utilisée par l’ingester (utilisateur applicatif)
 MONGO_URI=mongodb://app_user:app_pass@mongodb:27017/healthcare?authSource=admin
@@ -61,25 +59,6 @@ if (!exists) {
   // Optionnel: mettre à jour mot de passe/roles si nécessaire
   // db.updateUser(user, { pwd: pwd, roles: [{ role: 'readWrite', db: appDb }] });
 }
-```
-
-Important:
-- Les scripts d’init ne se rejouent que si le volume de données Mongo est vierge (après un down -v par exemple).
-
-## Démarrage des services
-
-Démarrer Mongo seul (recommandé pour initialiser l’utilisateur applicatif):
-
-```bash
-docker compose up -d mongodb
-```
-
-Attendre quelques secondes que l’initialisation s’exécute. Pour repartir de zéro (réinitialisation complète):
-
-```bash
-docker compose down -v
-docker compose up -d mongodb
-```
 
 ## Exécution du pipeline complet
 
@@ -91,6 +70,11 @@ Le pipeline fait:
 5/7 Vérifications pré-ingest (connexion Mongo)
 6/7 Ingestion en bulk
 7/7 Contrôle en base (count)
+Fin du pipeline
+- Export de la base de données 
+- Effacement du fichier .env
+
+Avant de lancer la commande Docker doit etre en cours d'éxécution sur la machine.
 
 Commande:
 
@@ -108,90 +92,14 @@ Exemples de sorties attendues:
 - Contrôle:
   - estimatedDocumentCount() ≈ 50000
 
-## Étapes manuelles (si besoin)
-
-Nettoyage:
-
-```bash
-docker compose run --rm ingester python scripts/prepare_clean_data.py
-```
-
-Ingestion:
-
-```bash
-docker compose run --rm ingester python scripts/ingest.py load
-```
-
-Test connexion Mongo depuis ingester:
-
-```bash
-docker compose run --rm ingester python -c "from pymongo import MongoClient; import os; print('URI=', os.getenv('MONGO_URI')); c=MongoClient(os.getenv('MONGO_URI')); print(c.list_database_names())"
-```
-
-Test contrôle en base (mongosh dans le conteneur Mongo):
-
-```bash
-docker exec -i mongodb mongosh "mongodb://app_user:app_pass@mongodb:27017/healthcare?authSource=admin" --eval 'db.encounters.estimatedDocumentCount()'
-```
-
-Astuce: pour ne pas exposer l’URI en clair dans la commande, sourcer .env avant:
-
-```bash
-set -a
-[ -f .env ] && . ./.env
-set +a
-docker exec -i mongodb sh -lc 'mongosh "$MONGO_URI" --eval "db.getSiblingDB(\"healthcare\").encounters.estimatedDocumentCount()"'
-```
-
-## Points d’attention
-
-- Auth Mongo:
-  - L’ingestion réussit uniquement si l’utilisateur applicatif existe et si MONGO_URI contient authSource=admin.
-  - En cas d’erreur “Authentication failed, code 18”, vérifier:
-    - Existence de app_user dans admin (mongosh: use admin; db.getUsers())
-    - MONGO_URI dans env du conteneur ingester (docker compose run --rm ingester env | grep MONGO_URI)
-- REPL Python qui s’ouvre à la place du script:
-  - Éviter un entrypoint ["bash","-lc"] sur le service ingester (retirer cette ligne si présente).
-  - Lancer avec: docker compose run --rm ingester python scripts/ingest.py load
-  - Si besoin de passer “--” pour transmettre les args: docker compose run --rm ingester -- python scripts/ingest.py load
-- Commande count dépréciée:
-  - Utiliser countDocuments({}) ou estimatedDocumentCount() plutôt que count().
-- Rejeu automatique de la création d’utilisateur:
-  - Les scripts d’init ne rejouent que sur volume vierge. Si tu veux forcer la création à chaque run, ajoute une étape de vérification dans run_pipeline.sh qui appelle mongosh et crée l’utilisateur s’il n’existe pas.
-
-## Exemples de snippets utiles
-
-Contrôle final dans run_pipeline.sh (recommandé):
-
-```bash
-echo "[7/7] Contrôle en base"
-docker exec -i mongodb mongosh "mongodb://app_user:app_pass@mongodb:27017/healthcare?authSource=admin" --eval 'db.encounters.estimatedDocumentCount()'
-```
-
-Ou, en sourçant .env pour ne pas exposer l’URI:
-
-```bash
-set -a
-[ -f .env ] && . ./.env
-set +a
-echo "[7/7] Contrôle en base"
-docker exec -i mongodb sh -lc 'mongosh "$MONGO_URI" --eval "db.getSiblingDB(\"healthcare\").encounters.estimatedDocumentCount()"'
-```
 
 ## Dépannage rapide
 
-- “Authentication failed.”:
-  - Vérifier db.getUsers() dans admin, présence de app_user, et authSource=admin dans l’URI.
-- “command count requires authentication”:
-  - La vérification finale n’utilise pas l’URI authentifiée. Utiliser mongosh avec MONGO_URI ou avec app_user/app_pass.
-- “mongosh: command not found”:
-  - Lancer mongosh dans le conteneur mongodb (docker exec -i mongodb mongosh ...), ou installer mongosh dans l’image où tu l’appelles.
-- REPL Python vs exécution script:
-  - Retirer entrypoint bash du service ingester et passer l’argument load correctement.
+- S'assurer d'avoir tous les fichiers du projet 
+- D'avoir créer le fichier .env à la racine du dossier
 
 ## Sécurité et bonnes pratiques
 
 - Éviter d’utiliser le compte root pour l’application; préférer app_user avec readWrite sur healthcare.
-- Ne pas commiter .env en clair; utiliser des secrets ou variables CI/CD en production.
-- Documenter la procédure de reset dev (down -v) pour rejouer l’initialisation de Mongo.
+- Ne pas commiter .env en clair; utiliser des secrets en production.
 

@@ -20,7 +20,6 @@ Pipeline de préparation et d’ingestion de données healthcare vers MongoDB, p
   - delete_all.py
   - verify_migration.py
 - data/healthcare_dataset.csv (source brute)
-- data/healthcare_cleaned.csv (généré)
 - docker/
   - init/01-create-user.js (init user Mongo)
   - Dockerfile.ingester

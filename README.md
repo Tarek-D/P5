@@ -134,6 +134,8 @@ encounters:
 ### Nettoyage final (.env)
 •	Supprime le fichier .env du workspace du conteneur ingester de manière non interactive via Docker Compose, ce qui efface aussi le .env côté hôte si le projet est bind‑mounté sur /app.
 
+![alt text](image-2.png)
+
 # ⚠ 
 ## Avant de lancer la commande, Docker doit etre en cours d'éxécution sur la machine.
 # ⚠ 

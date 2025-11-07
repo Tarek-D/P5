@@ -37,6 +37,7 @@ MONGO_INITDB_ROOT_PASSWORD=app_pass
 
 # URI utilisée par l’ingester (utilisateur applicatif)
 MONGO_URI=mongodb://app_user:app_pass@mongodb:27017/healthcare?authSource=admin
+MONGO_DB=healthcare
 ```
 
 Notes:

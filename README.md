@@ -75,6 +75,9 @@ if (!exists) {
 •	Le service ingester monte le répertoire du projet sur /app via un bind mount; cela rend tous les fichiers locaux visibles dans le conteneur, et toute suppression/écriture dans /app affecte aussi le dossier hôte.
 
 ## Format de la collection et documents dans la base de données 
+
+![alt text](image.png)
+
 ``` json
 encounters:
 {

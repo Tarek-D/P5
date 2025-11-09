@@ -1,4 +1,13 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
+ENV_FILE=".env"
+
+if [ ! -f "$ENV_FILE" ]; then
+  echo "Erreur: fichier $ENV_FILE manquant. Arrêt." >&2
+  exit 1
+fi
+
 set -a
 [ -f .env ] && . ./.env
 set +a

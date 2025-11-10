@@ -7,6 +7,8 @@ Pipeline de préparation et d’ingestion de données healthcare vers MongoDB, p
 - Docker et Docker Compose installés
 - Port 27017 disponible en local
 - Espace disque suffisant pour le volume Mongo
+- L'ensemble du dossier du projet
+- Ajouter le fichier .env à la racine du dossier 
 
 ## Structure du projet
 

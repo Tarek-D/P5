@@ -1,8 +1,4 @@
-/docker
 .env
 .DS_Store
 **/.DS_Store
 /exports
-.DS_Store
-.DS_Store
-.DS_Store

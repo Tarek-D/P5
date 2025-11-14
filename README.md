@@ -39,6 +39,7 @@ MONGO_INITDB_ROOT_PASSWORD=app_pass
 # URI utilisée par l’ingester (utilisateur applicatif)
 MONGO_URI=mongodb://app_user:app_pass@mongodb:27017/healthcare?authSource=admin
 MONGO_DB=healthcare
+MONGO_INITDB_DATABASE=healthcare
 ```
 
 Notes:
@@ -67,6 +68,22 @@ if (!exists) {
 } else {
   // Optionnel: mettre à jour mot de passe/roles si nécessaire
   // db.updateUser(user, { pwd: pwd, roles: [{ role: 'readWrite', db: appDb }] });
+}
+
+if (!db.getUser('admin')) {
+  db.createUser({
+    user: 'admin',
+    pwd: 'password123',
+    roles: [{ role: 'userAdmin', db: appDb }]
+  });
+}
+
+if (!db.getUser('readerwritter')) {
+  db.createUser({
+    user: 'readerwritter',
+    pwd: 'readerpass',
+    roles: [{ role: 'readWrite', db: appDb }]
+  });
 }
 ```
 ## Réseau, volumes et services
